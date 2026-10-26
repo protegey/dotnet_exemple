@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Points at the sibling protegey_dotnet_sdk checkout — swap for a PackageReference once
+         the SDK is published to NuGet.org (see protegey_dotnet_sdk/README.md). -->
+    <ProjectReference Include="../protegey_dotnet_sdk/src/Protegey.Sdk/Protegey.Sdk.csproj" />
+  </ItemGroup>
+
+</Project>
