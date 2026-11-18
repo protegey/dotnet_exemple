@@ -11,11 +11,15 @@
 </head>
 <body>
     <h1>Protegey — .NET example</h1>
-    <p>Demonstrates <code>Protegey.Sdk</code> (.NET) from an ASP.NET Core backend: transaction reporting and starting a KYC session. See <code>Program.cs</code>.</p>
+    <p>Demonstrates <code>Protegey.Sdk</code> (.NET) from an ASP.NET Core backend. See <code>Program.cs</code>.</p>
 
     <div>
         <button id="report">Report a test transaction</button>
         <button id="kyc">Verify my identity</button>
+        <button id="alerts">List open alerts</button>
+        <button id="screen">Screen "John Doe"</button>
+        <button id="invite">Invite a business (KYB)</button>
+        <button id="signal">Check shared fraud signals</button>
     </div>
 
     <pre id="log">Click a button to call the backend.</pre>
@@ -23,21 +27,32 @@
     <script>
         const log = document.getElementById('log');
 
-        async function post(path) {
-            const response = await fetch(path, { method: 'POST' });
+        async function call(path, method = 'POST') {
+            const response = await fetch(path, { method });
             return response.json();
         }
+        const post = (path) => call(path);
+        const show = (label, result) => { log.textContent = label + '\n' + JSON.stringify(result, null, 2); };
 
         document.getElementById('report').addEventListener('click', async () => {
             const result = await post('/protegey/report-transaction');
-            log.textContent = `transactions.ReportAsync() -> decision=${result.decision}, riskScore=${result.riskScore}`;
+            log.textContent = `Transactions.ReportAsync() -> decision=${result.decision}, riskScore=${result.riskScore}, deviceAction=${result.deviceAction}`;
         });
 
         document.getElementById('kyc').addEventListener('click', async () => {
             const result = await post('/protegey/start-kyc');
-            log.textContent = `kyc.StartSessionAsync() -> ${result.url}`;
-            window.open(result.url, '_blank', 'noopener,noreferrer');
+            log.textContent = `Kyc.StartSessionAsync() -> ${result.url}`;
+            if (result.url) window.open(result.url, '_blank', 'noopener,noreferrer');
         });
+
+        document.getElementById('alerts').addEventListener('click', async () =>
+            show('Alerts.ListAsync(status=OPEN)', await call('/protegey/alerts', 'GET')));
+        document.getElementById('screen').addEventListener('click', async () =>
+            show('Sanctions.ScreenAsync()', await post('/protegey/screen')));
+        document.getElementById('invite').addEventListener('click', async () =>
+            show('Kyb.InviteApplicantAsync() — send applicationUrl to the business', await post('/protegey/invite-business')));
+        document.getElementById('signal').addEventListener('click', async () =>
+            show('SharedSignal.CheckAsync()', await post('/protegey/shared-signal')));
     </script>
 </body>
 </html>
