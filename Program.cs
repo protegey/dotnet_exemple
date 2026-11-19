@@ -151,7 +151,7 @@ app.MapPost("/protegey/webhook", async (HttpRequest request, ILogger<Program> lo
     switch (type)
     {
         case WebhookEventTypes.KycStatusChanged:
-            // Sent on a FaceTec result and on manual status changes. sessionId is the same id
+            // Sent on an automated verification result and on manual status changes. sessionId is the same id
             // StartSessionAsync returned; recommendation is Protegey's verdict, status the final decision.
             logger.LogInformation("KYC {EventId}: session {Session} ({User}) -> {Status}, recommendation {Recommendation}",
                 eventId, root.GetProperty("sessionId"), root.GetProperty("externalUserId"), root.GetProperty("status"), root.GetProperty("recommendation"));
