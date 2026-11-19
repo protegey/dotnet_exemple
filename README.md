@@ -1,7 +1,7 @@
 # Protegey — .NET example
 
 Minimal ASP.NET Core app demonstrating `Protegey.Sdk` (.NET) from a real backend: transaction
-reporting, alerts, a KYC session, sanctions screening, a KYB invitation, a shared fraud signal
+reporting, cash deposits, alerts, a KYC session and its photos, sanctions screening, a KYB invitation, a shared fraud signal
 check, and verifying an incoming webhook's HMAC signature.
 
 ## Run it
@@ -27,6 +27,13 @@ backend directly.
   - `GET /protegey/alerts` — `protegey.Alerts.ListAsync()` filtered on open alerts.
   - `POST /protegey/start-kyc` — `protegey.Kyc.StartSessionAsync()`, returns the hosted URL, which
     the static page opens in a new tab.
+  - `GET /protegey/kyc-sessions` — `protegey.Kyc.ListSessionsAsync()` filtered on this demo
+    customer's `externalUserId` (exact match). The page shows each session's `recommendation`
+    and its photos from the `images` block (pre-signed links, valid 1 hour, re-issued per call).
+  - `POST /protegey/cash-deposit` — `protegey.CashDeposits.RecordAsync()` with our own
+    `externalTransactionId` (a reused one answers 409), then `GetAsync()` by that same reference.
+  - `GET /protegey/cash-deposits` — `protegey.CashDeposits.ListAsync()` for this customer over the
+    last 30 days.
   - `POST /protegey/screen` — `protegey.Sanctions.ScreenAsync()`.
   - `POST /protegey/invite-business` — `protegey.Kyb.InviteApplicantAsync()` with a phone number
     only; the response's `applicationUrl` is the link to send the business.

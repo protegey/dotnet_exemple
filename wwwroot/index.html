@@ -16,6 +16,9 @@
     <div>
         <button id="report">Report a test transaction</button>
         <button id="kyc">Verify my identity</button>
+        <button id="kycSessions">My KYC sessions</button>
+        <button id="deposit">Record a cash deposit</button>
+        <button id="deposits">List my cash deposits</button>
         <button id="alerts">List open alerts</button>
         <button id="screen">Screen "John Doe"</button>
         <button id="invite">Invite a business (KYB)</button>
@@ -23,6 +26,7 @@
     </div>
 
     <pre id="log">Click a button to call the backend.</pre>
+    <div id="photos"></div>
 
     <script>
         const log = document.getElementById('log');
@@ -32,7 +36,8 @@
             return response.json();
         }
         const post = (path) => call(path);
-        const show = (label, result) => { log.textContent = label + '\n' + JSON.stringify(result, null, 2); };
+        const photos = document.getElementById('photos');
+        const show = (label, result) => { photos.replaceChildren(); log.textContent = label + '\n' + JSON.stringify(result, null, 2); };
 
         document.getElementById('report').addEventListener('click', async () => {
             const result = await post('/protegey/report-transaction');
@@ -45,6 +50,29 @@
             if (result.url) window.open(result.url, '_blank', 'noopener,noreferrer');
         });
 
+        document.getElementById('kycSessions').addEventListener('click', async () => {
+            const result = await call('/protegey/kyc-sessions', 'GET');
+            show('Kyc.ListSessionsAsync(externalUserId) — status is the final decision, recommendation is Protegey\'s verdict', result);
+            // Pre-signed links, valid 1 hour and re-issued on every call — never stored.
+            for (const session of result.data ?? []) {
+                for (const [name, image] of Object.entries(session.images ?? {})) {
+                    if (!image) continue;
+                    const figure = document.createElement('figure');
+                    const img = document.createElement('img');
+                    img.src = image.url;
+                    img.alt = name;
+                    img.style.maxWidth = '160px';
+                    const caption = document.createElement('figcaption');
+                    caption.textContent = `${name} (${session.recommendation ?? 'no recommendation'}, expires ${image.expiresAt})`;
+                    figure.append(img, caption);
+                    photos.append(figure);
+                }
+            }
+        });
+        document.getElementById('deposit').addEventListener('click', async () =>
+            show('CashDeposits.RecordAsync() then GetAsync(externalTransactionId)', await post('/protegey/cash-deposit')));
+        document.getElementById('deposits').addEventListener('click', async () =>
+            show('CashDeposits.ListAsync(externalCustomerId, last 30 days)', await call('/protegey/cash-deposits', 'GET')));
         document.getElementById('alerts').addEventListener('click', async () =>
             show('Alerts.ListAsync(status=OPEN)', await call('/protegey/alerts', 'GET')));
         document.getElementById('screen').addEventListener('click', async () =>

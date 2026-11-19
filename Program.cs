@@ -64,6 +64,49 @@ app.MapPost("/protegey/start-kyc", async (HttpContext http, ProtegeyClient prote
     return await protegey.Kyc.StartSessionAsync(CustomerId(http.Session));
 });
 
+app.MapGet("/protegey/kyc-sessions", async (HttpContext http, ProtegeyClient protegey) =>
+{
+    // Exact match on our own customer id. Each row carries status (the final decision),
+    // recommendation (Protegey's verdict: APPROVE | REVIEW | REJECT | null) and images — pre-signed
+    // links valid 1 hour, re-issued on every call, so the page asks again instead of caching them.
+    return await protegey.Kyc.ListSessionsAsync(new Dictionary<string, object?>
+    {
+        ["externalUserId"] = CustomerId(http.Session),
+        ["limit"] = 10,
+    });
+});
+
+app.MapPost("/protegey/cash-deposit", async (HttpContext http, ProtegeyClient protegey) =>
+{
+    // Our own reference: sending it makes retries safe (a second POST with it answers 409).
+    var reference = $"dotnet-deposit-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+    // Returns {cashDepositId, externalTransactionId, decision (CLEAR|REVIEW|BLOCKED), riskScore, alerts[]}
+    var recorded = await protegey.CashDeposits.RecordAsync(new Dictionary<string, object?>
+    {
+        ["externalTransactionId"] = reference,
+        ["externalCustomerId"] = CustomerId(http.Session),
+        ["amount"] = 2500000,
+        ["currency"] = "XAF",
+        ["channel"] = "BRANCH",
+        ["branchId"] = "DLA-AKWA",
+        ["depositorName"] = "Demo Depositor",
+        ["metadata"] = new Dictionary<string, object?> { ["tellerId"] = "T-04" },
+    });
+    // Look it up by our own reference — amount comes back as a decimal string ("2500000.00").
+    var stored = await protegey.CashDeposits.GetAsync(reference);
+    return new { recorded, stored };
+});
+
+app.MapGet("/protegey/cash-deposits", async (HttpContext http, ProtegeyClient protegey) =>
+{
+    return await protegey.CashDeposits.ListAsync(new Dictionary<string, object?>
+    {
+        ["externalCustomerId"] = CustomerId(http.Session),
+        ["dateFrom"] = DateTime.UtcNow.AddDays(-30),
+        ["limit"] = 20,
+    });
+});
+
 app.MapPost("/protegey/screen", async (ProtegeyClient protegey) =>
 {
     return await protegey.Sanctions.ScreenAsync("John Doe", "person");
@@ -102,17 +145,20 @@ app.MapPost("/protegey/webhook", async (HttpRequest request, ILogger<Program> lo
     using var doc = System.Text.Json.JsonDocument.Parse(rawBody);
     var root = doc.RootElement;
     var type = root.GetProperty("type").GetString();
-    // Deliveries are retried (up to 5 attempts) — deduplicate on eventId in a real integration.
+    // Deliveries are retried (up to 5 attempts over ~3 h) — deduplicate on eventId in a real integration.
     var eventId = root.GetProperty("eventId").GetString();
 
     switch (type)
     {
         case WebhookEventTypes.KycStatusChanged:
-            // sessionId is always null on this event — correlate on externalUserId.
-            logger.LogInformation("KYC {EventId}: {User} -> {Status}", eventId, root.GetProperty("externalUserId"), root.GetProperty("status"));
+            // Sent on a FaceTec result and on manual status changes. sessionId is the same id
+            // StartSessionAsync returned; recommendation is Protegey's verdict, status the final decision.
+            logger.LogInformation("KYC {EventId}: session {Session} ({User}) -> {Status}, recommendation {Recommendation}",
+                eventId, root.GetProperty("sessionId"), root.GetProperty("externalUserId"), root.GetProperty("status"), root.GetProperty("recommendation"));
             break;
         case WebhookEventTypes.KybStatusChanged:
-            logger.LogInformation("KYB {EventId}: {Client} -> {Status}", eventId, root.GetProperty("clientId"), root.GetProperty("status"));
+            logger.LogInformation("KYB {EventId}: {Client} -> {Status} (submission {SubmissionStatus})",
+                eventId, root.GetProperty("clientId"), root.GetProperty("status"), root.GetProperty("submissionStatus"));
             break;
         case WebhookEventTypes.AlertCreated:
         case WebhookEventTypes.AlertStatusChanged:
